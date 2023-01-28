@@ -86,9 +86,9 @@ public:
 
     void Simulate(const uint32_t generationCount) {
         cout << "Backpack values: " << endl;
-        //Print<uint16_t>(mBackpack.values);
+        Print<uint16_t>(mBackpack.values);
         cout << "Backpack weights: " << endl;
-        //Print<uint16_t>(mBackpack.weights);
+        Print<uint16_t>(mBackpack.weights);
         cout << "Backpack max weight: " << endl;
         cout << mBackpack.weightMax << endl << endl;
 

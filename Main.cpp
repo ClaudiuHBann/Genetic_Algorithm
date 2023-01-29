@@ -102,26 +102,26 @@ public:
             ranges::for_each(populationView, [&population] (const auto& rowView) { population.push_back(vector(rowView.begin(), rowView.end())); });
         }
 
-        matrix<int> fitnesses {};
+        matrix<int> fitnessFirstAndLast {};
 
         for (size_t i = 0; i < generationCount; i++) {
             auto fitness = GenerateFitness(population);
             if (i == 0 || i == generationCount - 1) {
-                fitnesses.push_back(fitness);
+                fitnessFirstAndLast.push_back(fitness);
             }
 
             auto fitnessSegments = GenerateFitnessSegments(fitness);
             auto chromosomes = SelectChromosomes(population, fitnessSegments);
             auto populationNew = CrossPopulationAndMutateChildren(chromosomes);
 
-            ///
-            population.insert(population.end(), populationNew.begin(), populationNew.end());
+            population = SortPopulationByFitness(population, fitness);
             population.erase(population.begin(), population.begin() + mGroupCount * mGroupSize);
+            population.insert(population.end(), populationNew.begin(), populationNew.end());
 
             cout << "Iteration " << i << ": medium = " << Mean(fitness) << ", dispersion = " << Dispersion(fitness) << endl;
         }
 
-        cout << endl << "Fitness improvement percentage: " << (int)GetFitnessesImprovementPercentage(fitnesses) << "%" << endl;
+        cout << endl << "Fitness improvement percentage: " << (int)GetFitnessesImprovementPercentage(fitnessFirstAndLast) << '%' << endl;
     }
 
 private:
@@ -240,7 +240,21 @@ private:
         auto fitnessSumFirst = accumulate(fitnesses.front().begin(), fitnesses.front().end(), 0.f);
         auto fitnessSumLast = accumulate(fitnesses.back().begin(), fitnesses.back().end(), 0.f);
 
-        return fitnessSumFirst / fitnessSumLast;
+        return (fitnessSumLast - fitnessSumFirst) / fitnessSumLast * 100.f;
+    }
+
+    inline matrix<int> SortPopulationByFitness(const matrix<int>& population, const vector<int> fitnesses) {
+        vector<tuple<vector<int>, int>> populationAndFitness;
+        for (size_t i = 0; i < population.size(); i++) {
+            populationAndFitness.push_back({ population[i], fitnesses[i] });
+        }
+
+        sort(populationAndFitness.begin(), populationAndFitness.end(), [] (const auto& left, const auto& right) { return get<1>(left) < get<1>(right); });
+
+        matrix<int> populationSorted;
+        ranges::for_each(populationAndFitness, [&] (const auto& item) { populationSorted.push_back(get<0>(item)); });
+
+        return populationSorted;
     }
 
     inline float Mean(const vector<int>& fitness) const {
@@ -260,7 +274,7 @@ int main() {
     Backpack backpack(10, 100, 18, 0.25);
     backpack.SetBackpack({ 30, 15, 60, 85, 100, 10, 25, 50, 5, 70 }, { 5, 14, 6, 8, 14, 11, 4, 11, 9, 20 }, 50);
 
-    backpack.Simulate(250'000);
+    backpack.Simulate(100);
 
     return 0;
 }

@@ -1,3 +1,11 @@
+/*
+    A genetic algorithm that uses:
+        1. the backpack problem to generate the fitness of the population
+        2. the (russian) roulette algorithm for chromosome selection
+        3. the uniform binary crossover algorithm for chromosome crossing
+        4. the hard binary mutation for chromosome mutation
+*/
+
 #include <functional>
 #include <algorithm>
 #include <iostream>
@@ -98,25 +106,23 @@ public:
 
         matrix<int> population;
         {
-            auto populationView = mRandom.GetMatrix(mPopulationSize, mChromosomeSize, 0, 1);
+            auto populationView = move(mRandom.GetMatrix(mPopulationSize, mChromosomeSize, 0, 1));
             ranges::for_each(populationView, [&population] (const auto& rowView) { population.push_back(vector(rowView.begin(), rowView.end())); });
         }
 
         matrix<int> fitnessFirstAndLast {};
 
         for (size_t i = 0; i < generationCount; i++) {
-            auto fitness = GenerateFitness(population);
+            auto fitness = move(GenerateFitness(population));
             if (i == 0 || i == generationCount - 1) {
                 fitnessFirstAndLast.push_back(fitness);
             }
 
-            auto fitnessSegments = GenerateFitnessSegments(fitness);
-            auto chromosomes = SelectChromosomes(population, fitnessSegments);
-            auto populationNew = CrossPopulationAndMutateChildren(chromosomes);
+            auto fitnessSegments = move(GenerateFitnessSegments(fitness));
+            auto chromosomes = move(SelectChromosomes(population, fitnessSegments));
+            auto populationNew = move(CrossPopulationAndMutateChildren(chromosomes));
 
-            population = SortPopulationByFitness(population, fitness);
-            population.erase(population.begin(), population.begin() + mGroupCount * mGroupSize);
-            population.insert(population.end(), populationNew.begin(), populationNew.end());
+            population = move(KillTheWEAKAndAddChildren(population, fitness, populationNew));
 
             cout << "Iteration " << i << ": medium = " << Mean(fitness) << ", dispersion = " << Dispersion(fitness) << endl;
         }
@@ -195,8 +201,8 @@ private:
         return chromosomesGroups;
     }
 
-    auto MutateChild(vector<int> chromosomeChild) {
-        auto pms = mRandom.GetVector(mChromosomeSize, 0.f, 1.f);
+    vector<int> MutateChild(vector<int> chromosomeChild) {
+        auto pms = move(mRandom.GetVector(mChromosomeSize, 0.f, 1.f));
 
         for (size_t i = 0; i < ranges::distance(pms); i++) {
             if (pms[i] < mPM) {
@@ -227,7 +233,7 @@ private:
         matrix<int> chromoGroupsNew;
 
         for (size_t i = 0; i < chromoGroups.size(); i += mGroupSize) {
-            auto children = CrossChromosomes(chromoGroups[i], chromoGroups[i + 1]);
+            auto children = move(CrossChromosomes(chromoGroups[i], chromoGroups[i + 1]));
 
             chromoGroupsNew.push_back(MutateChild(children[0]));
             chromoGroupsNew.push_back(MutateChild(children[1]));
@@ -253,6 +259,14 @@ private:
 
         matrix<int> populationSorted;
         ranges::for_each(populationAndFitness, [&] (const auto& item) { populationSorted.push_back(get<0>(item)); });
+
+        return populationSorted;
+    }
+
+    inline matrix<int> KillTheWEAKAndAddChildren(const matrix<int>& population, const vector<int> fitnesses, const matrix<int>& populationNew) {
+        auto populationSorted = move(SortPopulationByFitness(population, fitnesses));
+        populationSorted.erase(populationSorted.begin(), populationSorted.begin() + mGroupCount * mGroupSize);
+        populationSorted.insert(populationSorted.end(), populationNew.begin(), populationNew.end());
 
         return populationSorted;
     }
